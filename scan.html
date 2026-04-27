@@ -238,6 +238,18 @@
       transform: translateY(-1px);
     }
     .btn-confirm:disabled { background: rgba(255,255,255,0.08); color: #475569; box-shadow: none; }
+    .btn-out {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      padding: 17px; font-size: 20px; font-weight: 700;
+      box-shadow: 0 4px 20px rgba(249,115,22,0.35);
+      margin-bottom: 10px;
+    }
+    .btn-out:hover:not(:disabled) {
+      box-shadow: 0 8px 30px rgba(249,115,22,0.5);
+      transform: translateY(-1px);
+    }
+    .btn-out:disabled { background: rgba(255,255,255,0.08); color: #475569; box-shadow: none; }
     .btn-cancel {
       background: rgba(239,68,68,0.1);
       border: 1px solid rgba(239,68,68,0.25);
@@ -296,7 +308,8 @@
     <div class="user-name" id="modalName">...</div>
     <div id="modalTime" class="time-badge">00:00</div>
     <div id="modalScore" class="score-text"></div>
-    <button class="btn btn-confirm" id="btnConfirm" onclick="confirmAttendance()">✅ ยืนยันเข้างาน</button>
+    <button class="btn btn-confirm" id="btnConfirmIn" onclick="confirmAttendance('in')">✅ ยืนยันเข้างาน</button>
+    <button class="btn btn-out" id="btnConfirmOut" onclick="confirmAttendance('out')">⏱️ ยืนยันออกงาน</button>
     <button class="btn btn-cancel" onclick="cancelAttendance()">ไม่ใช่ฉัน</button>
   </div>
 </div>
@@ -479,7 +492,7 @@
 
     const now = new Date();
     const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('modalTime').innerText  = 'เวลาเข้างาน: ' + timeStr + ' น.';
+    document.getElementById('modalTime').innerText  = 'เวลาปัจจุบัน: ' + timeStr + ' น.';
 
     const pct = ((1 - match.distance) * 100).toFixed(1);
     document.getElementById('modalScore').innerText = 'ความเหมือน: ' + pct + '%';
@@ -488,15 +501,24 @@
     mainStatus.innerText = 'กรุณายืนยัน...';
   }
 
-  async function confirmAttendance() {
-    const btn = document.getElementById('btnConfirm');
+  async function confirmAttendance(attendanceType) {
+    const btn = document.getElementById(attendanceType === 'out' ? 'btnConfirmOut' : 'btnConfirmIn');
+    const otherBtn = document.getElementById(attendanceType === 'out' ? 'btnConfirmIn' : 'btnConfirmOut');
+    const originalText = btn.innerText;
     btn.disabled   = true;
+    otherBtn.disabled = true;
     btn.innerText  = 'กำลังบันทึก...';
 
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'logAttendance', name: currentMatch, lat: currentLat, lng: currentLng })
+        body: JSON.stringify({
+          action: 'logAttendance',
+          name: currentMatch,
+          lat: currentLat,
+          lng: currentLng,
+          attendanceType: attendanceType
+        })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -505,7 +527,8 @@
     } catch (e) {
       alert('❌ บันทึกล้มเหลว: ' + e.message);
       btn.disabled  = false;
-      btn.innerText = '✅ ยืนยันเข้างาน';
+      otherBtn.disabled = false;
+      btn.innerText = originalText;
     }
   }
 

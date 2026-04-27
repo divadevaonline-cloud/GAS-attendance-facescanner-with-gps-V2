@@ -41,7 +41,7 @@ function doPost(e) {
   } else if (action === 'registerUser') {
     result = verifyAdminPin(data.adminPin) || registerUser(data.name, data.faceDescriptor);
   } else if (action === 'logAttendance') {
-    result = logAttendance(data.name, data.lat, data.lng);
+    result = logAttendance(data.name, data.lat, data.lng, data.attendanceType);
   } else if (action === 'saveConfig') {
     result = verifyAdminPin(data.adminPin) || saveConfig(data.lat, data.lng, data.radius);
   } else {
@@ -91,10 +91,11 @@ function getKnownFaces() {
 }
 
 // --- ส่วนบันทึกเวลา (Attendance) ---
-function logAttendance(name, lat, lng) {
+function logAttendance(name, lat, lng, attendanceType) {
   name = String(name || '').trim();
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
+  const type = String(attendanceType || 'in').toLowerCase() === 'out' ? 'out' : 'in';
   if (!name) return { error: 'ไม่พบชื่อพนักงาน' };
   if (!isFinite(latitude) || !isFinite(longitude)) return { error: 'ไม่พบพิกัด GPS' };
 
@@ -110,26 +111,58 @@ function logAttendance(name, lat, lng) {
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Attendance');
-  if (!sheet) {
-    sheet = ss.insertSheet('Attendance');
-    sheet.appendRow(['Name', 'Time', 'Date', 'Latitude', 'Longitude', 'Google Map Link']);
-  }
+  const sheet = ensureAttendanceSheet(ss);
 
   const now = new Date();
   const mapLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'd/M/yyyy');
   const timeStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
+  const rowNumber = findAttendanceRow(sheet, name, dateStr) || sheet.getLastRow() + 1;
 
-  sheet.appendRow([
-    name,
-    timeStr,
-    "'" + dateStr,
-    latitude,
-    longitude,
-    mapLink
-  ]);
-  return { success: true, message: 'บันทึกเวลาสำเร็จ' };
+  if (rowNumber > sheet.getLastRow()) {
+    sheet.getRange(rowNumber, 1, 1, 10).setValues([[
+      name, "'" + dateStr, '', '', '', '', '', '', '', ''
+    ]]);
+  }
+
+  if (type === 'out') {
+    sheet.getRange(rowNumber, 4).setValue(timeStr);
+    sheet.getRange(rowNumber, 7).setValue(latitude);
+    sheet.getRange(rowNumber, 8).setValue(longitude);
+    sheet.getRange(rowNumber, 10).setValue(mapLink);
+    return { success: true, message: 'บันทึกเวลาออกงานสำเร็จ' };
+  }
+
+  sheet.getRange(rowNumber, 3).setValue(timeStr);
+  sheet.getRange(rowNumber, 5).setValue(latitude);
+  sheet.getRange(rowNumber, 6).setValue(longitude);
+  sheet.getRange(rowNumber, 9).setValue(mapLink);
+  return { success: true, message: 'บันทึกเวลาเข้างานสำเร็จ' };
+}
+
+function ensureAttendanceSheet(ss) {
+  let sheet = ss.getSheetByName('Attendance');
+  if (!sheet) sheet = ss.insertSheet('Attendance');
+  const headers = [
+    'Name', 'Date', 'Time In', 'Time Out',
+    'Latitude In', 'Longitude In', 'Latitude Out', 'Longitude Out',
+    'Map In', 'Map Out'
+  ];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function findAttendanceRow(sheet, name, dateStr) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  const values = sheet.getRange(2, 1, lastRow - 1, 2).getDisplayValues();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === name && String(values[i][1]).replace(/^'/, '').trim() === dateStr) {
+      return i + 2;
+    }
+  }
+  return 0;
 }
 
 // --- ส่วนจัดการ Config (GPS) ---
