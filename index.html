@@ -126,8 +126,6 @@
     .btn-register:hover { box-shadow: 0 8px 30px rgba(99,102,241,0.35); border-color: rgba(99,102,241,0.5); }
     .btn-scan:hover     { box-shadow: 0 8px 30px rgba(16,185,129,0.35); border-color: rgba(16,185,129,0.5); }
     .btn-config:hover   { box-shadow: 0 8px 30px rgba(100,116,139,0.25); border-color: rgba(148,163,184,0.4); }
-    .admin-only { display: none; }
-    body.admin-unlocked .admin-only { display: flex; }
 
     .card-icon {
       width: 52px; height: 52px;
@@ -194,23 +192,6 @@
       <span class="card-arrow">›</span>
     </button>
 
-    <a href="register.html" class="btn-menu btn-register admin-only">
-      <div class="card-icon">👤</div>
-      <div class="card-text">
-        <div class="card-title">ลงทะเบียนพนักงาน</div>
-        <div class="card-desc">บันทึกข้อมูลใบหน้าใหม่</div>
-      </div>
-      <span class="card-arrow">›</span>
-    </a>
-
-    <a href="config.html" class="btn-menu btn-config admin-only">
-      <div class="card-icon">⚙️</div>
-      <div class="card-text">
-        <div class="card-title">ตั้งค่าระบบ</div>
-        <div class="card-desc">จัดการ GPS และ API (Admin)</div>
-      </div>
-      <span class="card-arrow">›</span>
-    </a>
   </div>
 
   <script>
@@ -228,11 +209,12 @@
         return;
       }
       sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
-      document.body.classList.add('admin-unlocked');
-    }
-
-    if (isValidPin(sessionStorage.getItem(ADMIN_PIN_KEY))) {
-      document.body.classList.add('admin-unlocked');
+      const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ');
+      if (choice === '1') {
+        window.location.href = 'register.html';
+      } else if (choice === '2') {
+        window.location.href = 'config.html';
+      }
     }
 
     if (!localStorage.getItem('gasApiUrl') && typeof GAS_API_URL === 'undefined') {
