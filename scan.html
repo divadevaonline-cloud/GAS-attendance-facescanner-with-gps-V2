@@ -499,6 +499,7 @@
         body: JSON.stringify({ action: 'logAttendance', name: currentMatch, lat: currentLat, lng: currentLng })
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       alert('✅ ' + (data.message || 'บันทึกเวลาสำเร็จ'));
       window.location.href = 'index.html';
     } catch (e) {

@@ -126,6 +126,8 @@
     .btn-register:hover { box-shadow: 0 8px 30px rgba(99,102,241,0.35); border-color: rgba(99,102,241,0.5); }
     .btn-scan:hover     { box-shadow: 0 8px 30px rgba(16,185,129,0.35); border-color: rgba(16,185,129,0.5); }
     .btn-config:hover   { box-shadow: 0 8px 30px rgba(100,116,139,0.25); border-color: rgba(148,163,184,0.4); }
+    .admin-only { display: none; }
+    body.admin-unlocked .admin-only { display: flex; }
 
     .card-icon {
       width: 52px; height: 52px;
@@ -147,6 +149,12 @@
       transition: transform 0.3s ease, color 0.3s ease;
     }
     .btn-menu:hover .card-arrow { transform: translateX(4px); color: #94a3b8; }
+    button.btn-menu {
+      width: 100%;
+      cursor: pointer;
+      font-family: 'Sarabun', sans-serif;
+      text-align: left;
+    }
 
     /* Animations */
     @keyframes fadeIn    { from { opacity: 0; }                      to { opacity: 1; } }
@@ -168,15 +176,6 @@
   </div>
 
   <div class="menu-cards">
-    <a href="register.html" class="btn-menu btn-register">
-      <div class="card-icon">👤</div>
-      <div class="card-text">
-        <div class="card-title">ลงทะเบียนพนักงาน</div>
-        <div class="card-desc">บันทึกข้อมูลใบหน้าใหม่</div>
-      </div>
-      <span class="card-arrow">›</span>
-    </a>
-
     <a href="scan.html" class="btn-menu btn-scan">
       <div class="card-icon">📷</div>
       <div class="card-text">
@@ -186,7 +185,25 @@
       <span class="card-arrow">›</span>
     </a>
 
-    <a href="config.html" class="btn-menu btn-config">
+    <button type="button" class="btn-menu btn-config" onclick="unlockAdmin()">
+      <div class="card-icon">🔐</div>
+      <div class="card-text">
+        <div class="card-title">ผู้ดูแลระบบ</div>
+        <div class="card-desc">ใส่ PIN 6 หลักเพื่อจัดการพนักงานและ GPS</div>
+      </div>
+      <span class="card-arrow">›</span>
+    </button>
+
+    <a href="register.html" class="btn-menu btn-register admin-only">
+      <div class="card-icon">👤</div>
+      <div class="card-text">
+        <div class="card-title">ลงทะเบียนพนักงาน</div>
+        <div class="card-desc">บันทึกข้อมูลใบหน้าใหม่</div>
+      </div>
+      <span class="card-arrow">›</span>
+    </a>
+
+    <a href="config.html" class="btn-menu btn-config admin-only">
       <div class="card-icon">⚙️</div>
       <div class="card-text">
         <div class="card-title">ตั้งค่าระบบ</div>
@@ -197,6 +214,27 @@
   </div>
 
   <script>
+    const ADMIN_PIN_KEY = 'attendanceAdminPin';
+
+    function isValidPin(pin) {
+      return /^\d{6}$/.test(String(pin || '').trim());
+    }
+
+    function unlockAdmin() {
+      const pin = prompt('ใส่ Admin PIN 6 หลัก');
+      if (pin === null) return;
+      if (!isValidPin(pin)) {
+        alert('PIN ต้องเป็นตัวเลข 6 หลัก');
+        return;
+      }
+      sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
+      document.body.classList.add('admin-unlocked');
+    }
+
+    if (isValidPin(sessionStorage.getItem(ADMIN_PIN_KEY))) {
+      document.body.classList.add('admin-unlocked');
+    }
+
     if (!localStorage.getItem('gasApiUrl') && typeof GAS_API_URL === 'undefined') {
       document.getElementById('apiWarning').style.display = 'block';
     }

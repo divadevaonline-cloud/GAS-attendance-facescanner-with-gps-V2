@@ -256,6 +256,7 @@
 
 <script>
   const API_URL   = localStorage.getItem('gasApiUrl') || GAS_API_URL;
+  const ADMIN_PIN_KEY = 'attendanceAdminPin';
   const video     = document.getElementById('video');
   const statusDiv = document.getElementById('status');
   const btnSave   = document.getElementById('btnSave');
@@ -267,7 +268,34 @@
   if (!API_URL) {
     statusDiv.innerHTML = '<span style="color:#f87171">❌ ยังไม่ได้ตั้งค่า API URL — <a href="config.html" style="color:#fbbf24">ไปตั้งค่า</a></span>';
   } else {
-    window.addEventListener('load', initModels);
+    window.addEventListener('load', requireAdminThenInit);
+  }
+
+  function isValidPin(pin) {
+    return /^\d{6}$/.test(String(pin || '').trim());
+  }
+
+  function getAdminPin() {
+    return sessionStorage.getItem(ADMIN_PIN_KEY) || '';
+  }
+
+  function requireAdminThenInit() {
+    let pin = getAdminPin();
+    if (!isValidPin(pin)) {
+      pin = prompt('ใส่ Admin PIN 6 หลักเพื่อเข้าเมนูลงทะเบียน');
+      if (pin === null) {
+        window.location.href = 'index.html';
+        return;
+      }
+      pin = pin.trim();
+    }
+    if (!isValidPin(pin)) {
+      alert('PIN ต้องเป็นตัวเลข 6 หลัก');
+      window.location.href = 'index.html';
+      return;
+    }
+    sessionStorage.setItem(ADMIN_PIN_KEY, pin);
+    initModels();
   }
 
   function updateDots() {
@@ -429,9 +457,15 @@
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'registerUser', name, faceDescriptor: descriptorArray })
+        body: JSON.stringify({
+          action: 'registerUser',
+          name,
+          faceDescriptor: descriptorArray,
+          adminPin: getAdminPin()
+        })
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
 
       saveCounter++;
       updateDots();
