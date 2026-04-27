@@ -178,6 +178,22 @@
       box-shadow: none;
       cursor: default;
     }
+    #btnCamera {
+      display: none;
+      width: 100%;
+      max-width: 480px;
+      margin: 14px auto 0;
+      padding: 14px;
+      background: linear-gradient(135deg, #0891b2, #06b6d4);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'Sarabun', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(6,182,212,0.3);
+    }
 
     .count-badge {
       background: rgba(255,255,255,0.2);
@@ -223,6 +239,7 @@
   <div class="video-wrapper">
     <video id="video" autoplay muted playsinline></video>
   </div>
+  <button id="btnCamera" onclick="startCamera(true)">📷 ลองเปิดกล้องอีกครั้ง</button>
 
   <div class="form-section">
     <div class="input-group">
@@ -242,9 +259,10 @@
   const video     = document.getElementById('video');
   const statusDiv = document.getElementById('status');
   const btnSave   = document.getElementById('btnSave');
+  const btnCamera = document.getElementById('btnCamera');
   const msgDiv    = document.getElementById('msg');
-  const countSpan = document.getElementById('saveCount');
   let saveCounter = 0;
+  let cameraStream = null;
 
   if (!API_URL) {
     statusDiv.innerHTML = '<span style="color:#f87171">❌ ยังไม่ได้ตั้งค่า API URL — <a href="config.html" style="color:#fbbf24">ไปตั้งค่า</a></span>';
@@ -267,22 +285,123 @@
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
       ]);
-      startCamera();
+      await startCamera(false);
     } catch (e) {
       statusDiv.innerHTML = '<span style="color:#f87171">❌ โหลด AI Model ล้มเหลว: ' + e.message + '</span>';
     }
   }
 
-  function startCamera() {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-      .then(stream => {
-        video.srcObject = stream;
-        statusDiv.innerText = '';
-        btnSave.disabled = false;
-      })
-      .catch(err => {
-        statusDiv.innerHTML = '<span style="color:#f87171">❌ เปิดกล้องไม่ได้: ' + err.message + '</span>';
-      });
+  async function startCamera(fromUserClick) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      statusDiv.innerHTML = '<span style="color:#f87171">❌ เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง</span>';
+      return;
+    }
+
+    btnSave.disabled = true;
+    btnCamera.style.display = 'none';
+    statusDiv.innerHTML = '<span class="spinner"></span> กำลังเปิดกล้อง...';
+
+    try {
+      stopCamera();
+      prepareVideoElement();
+      cameraStream = await getCameraStream();
+      video.srcObject = cameraStream;
+      await video.play();
+      await waitForVideoReady(10000);
+
+      statusDiv.innerText = '';
+      btnSave.disabled = false;
+    } catch (err) {
+      stopCamera();
+      statusDiv.innerHTML = '<span style="color:#f87171">❌ ' + getCameraErrorMessage(err) + '</span>';
+      btnCamera.style.display = 'block';
+    }
+  }
+
+  function prepareVideoElement() {
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+  }
+
+  async function getCameraStream() {
+    const options = [
+      { video: { facingMode: 'user' }, audio: false },
+      { video: { facingMode: { ideal: 'user' } }, audio: false },
+      { video: true, audio: false }
+    ];
+
+    let lastError = null;
+    for (const constraints of options) {
+      try {
+        return await withTimeout(
+          navigator.mediaDevices.getUserMedia(constraints),
+          12000,
+          'กล้องไม่ตอบสนองหลังจากอนุญาตแล้ว'
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+
+  function withTimeout(promise, ms, message) {
+    let timer = null;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  function waitForVideoReady(ms) {
+    const startedAt = Date.now();
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        if (video.videoWidth && video.videoHeight && video.readyState >= 2) {
+          resolve();
+          return;
+        }
+        if (Date.now() - startedAt > ms) {
+          reject(new Error('ได้รับสิทธิ์กล้องแล้ว แต่เบราว์เซอร์ไม่ส่งภาพวิดีโอ'));
+          return;
+        }
+        setTimeout(tick, 150);
+      };
+      tick();
+    });
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    video.srcObject = null;
+  }
+
+  function getCameraErrorMessage(err) {
+    const name = err && err.name ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return 'เบราว์เซอร์ยังไม่อนุญาตให้ใช้กล้อง กรุณาเปิดสิทธิ์ Camera ใน Site settings แล้วลองใหม่';
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      return 'ไม่พบกล้องหน้าในอุปกรณ์นี้';
+    }
+    if (name === 'NotReadableError') {
+      return 'กล้องถูกใช้งานโดยแอปอื่นอยู่ กรุณาปิดแอปกล้อง/วิดีโอคอลแล้วลองใหม่';
+    }
+    if (err && err.message && err.message.indexOf('ไม่ส่งภาพวิดีโอ') !== -1) {
+      return 'ได้รับสิทธิ์กล้องแล้ว แต่เบราว์เซอร์ไม่ส่งภาพวิดีโอ กรุณาลองกดปุ่มเปิดกล้องอีกครั้ง หรือเปิดด้วย Chrome โดยตรง';
+    }
+    return 'เปิดกล้องไม่ได้: ' + (err && err.message ? err.message : 'ไม่ทราบสาเหตุ');
+  }
+
+  function setSaveButton(label) {
+    btnSave.innerHTML = label + ' <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
   }
 
   async function saveFace() {
@@ -290,7 +409,7 @@
     if (!name) return alert('กรุณาใส่ชื่อก่อน');
 
     btnSave.disabled = true;
-    btnSave.innerHTML = '⏳ กำลังประมวลผล... <span class="count-badge">' + saveCounter + '</span>';
+    setSaveButton('⏳ กำลังประมวลผล...');
     msgDiv.innerText = '';
 
     const detection = await faceapi
@@ -301,7 +420,7 @@
     if (!detection) {
       alert('ไม่พบใบหน้า! กรุณามองกล้องให้ชัดเจน');
       btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+      setSaveButton('📸 บันทึกใบหน้า');
       return;
     }
 
@@ -315,15 +434,14 @@
       const data = await res.json();
 
       saveCounter++;
-      countSpan.innerText = saveCounter;
       updateDots();
       msgDiv.innerHTML = '<span class="msg-success">✅ บันทึกครั้งที่ ' + saveCounter + ' สำเร็จ! ขยับหน้าเล็กน้อยแล้วกดอีกครั้ง</span>';
       btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกเพิ่ม <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+      setSaveButton('📸 บันทึกเพิ่ม');
     } catch (e) {
       msgDiv.innerHTML = '<span class="msg-error">❌ บันทึกล้มเหลว: ' + e.message + '</span>';
       btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+      setSaveButton('📸 บันทึกใบหน้า');
     }
   }
 </script>
