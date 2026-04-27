@@ -201,19 +201,39 @@
       return /^\d{6}$/.test(String(pin || '').trim());
     }
 
-    function unlockAdmin() {
+    function getApiUrl() {
+      return localStorage.getItem('gasApiUrl') || GAS_API_URL;
+    }
+
+    async function verifyAdminPinWithApi(pin) {
+      const res = await fetch(getApiUrl(), {
+        method: 'POST',
+        body: JSON.stringify({ action: 'verifyAdminPin', adminPin: pin })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    }
+
+    async function unlockAdmin() {
       const pin = prompt('ใส่ Admin PIN 6 หลัก');
       if (pin === null) return;
       if (!isValidPin(pin)) {
         alert('PIN ต้องเป็นตัวเลข 6 หลัก');
         return;
       }
-      sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
-      const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ');
-      if (choice === '1') {
-        window.location.href = 'register.html';
-      } else if (choice === '2') {
-        window.location.href = 'config.html';
+      try {
+        await verifyAdminPinWithApi(pin.trim());
+        sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
+        const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ');
+        if (choice === '1') {
+          window.location.href = 'register.html';
+        } else if (choice === '2') {
+          window.location.href = 'config.html';
+        }
+      } catch (error) {
+        sessionStorage.removeItem(ADMIN_PIN_KEY);
+        alert(error.message || 'PIN ไม่ถูกต้อง');
       }
     }
 

@@ -4,7 +4,7 @@
 //           Execute as: Me | Who has access: Anyone
 // ============================================================
 
-const DEFAULT_ADMIN_PIN = '123456';
+const DEFAULT_ADMIN_PIN = '162823';
 
 function doGet(e) {
   const action = e.parameter.action;
@@ -36,7 +36,9 @@ function doPost(e) {
   const action = data.action;
   let result;
 
-  if (action === 'registerUser') {
+  if (action === 'verifyAdminPin') {
+    result = verifyAdminPin(data.adminPin) || { success: true, message: 'PIN ถูกต้อง' };
+  } else if (action === 'registerUser') {
     result = verifyAdminPin(data.adminPin) || registerUser(data.name, data.faceDescriptor);
   } else if (action === 'logAttendance') {
     result = logAttendance(data.name, data.lat, data.lng);
