@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>จัดการพนักงาน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="js/api-config.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
+      color: #e2e8f0;
+      padding: 28px 16px 60px;
+    }
+    .container { width: 100%; max-width: 560px; margin: 0 auto; }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #94a3b8; text-decoration: none; font-size: 0.9em;
+      padding: 7px 12px; border-radius: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 1.55em; font-weight: 700;
+      background: linear-gradient(135deg, #a5b4fc, #e2e8f0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .subtitle { color: #64748b; font-size: 0.86em; margin-bottom: 20px; }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 14px; }
+    .btn {
+      border: none; border-radius: 12px; cursor: pointer;
+      font-family: 'Sarabun', sans-serif; font-size: 15px; font-weight: 600;
+      padding: 12px 14px;
+      transition: all 0.25s ease;
+    }
+    .btn-refresh {
+      flex: 1;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: white;
+    }
+    .employee-list { display: flex; flex-direction: column; gap: 12px; }
+    .employee-card {
+      display: flex; align-items: center; gap: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .avatar {
+      width: 46px; height: 46px; border-radius: 14px;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .employee-info { flex: 1; min-width: 0; }
+    .employee-name { font-size: 1.05em; font-weight: 700; color: #f8fafc; word-break: break-word; }
+    .employee-meta { color: #64748b; font-size: 0.78em; margin-top: 2px; }
+    .btn-delete {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #fca5a5;
+      width: auto;
+      padding: 10px 13px;
+      flex-shrink: 0;
+    }
+    .empty, #msg {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 16px;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 12px;
+    }
+    #msg { display: none; }
+    .msg-error { color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+    .msg-success { color: #34d399; border-color: rgba(16,185,129,0.3); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-btn">← กลับ</a>
+    <h2>จัดการพนักงาน</h2>
+    <p class="subtitle">ดูรายชื่อที่ลงทะเบียนไว้ และลบข้อมูลใบหน้าที่ไม่ต้องใช้งานแล้ว</p>
+
+    <div class="toolbar">
+      <button class="btn btn-refresh" onclick="loadUsers()">รีเฟรชรายชื่อ</button>
+    </div>
+    <div id="list" class="employee-list"></div>
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    const API_URL = localStorage.getItem('gasApiUrl') || GAS_API_URL;
+    const ADMIN_PIN_KEY = 'attendanceAdminPin';
+    const listEl = document.getElementById('list');
+    const msgEl = document.getElementById('msg');
+
+    window.addEventListener('load', init);
+
+    function isValidPin(pin) {
+      return /^\d{6}$/.test(String(pin || '').trim());
+    }
+
+    function getAdminPin() {
+      return sessionStorage.getItem(ADMIN_PIN_KEY) || '';
+    }
+
+    async function apiPost(payload) {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    }
+
+    async function init() {
+      let pin = getAdminPin();
+      if (!isValidPin(pin)) {
+        pin = prompt('ใส่ Admin PIN 6 หลักเพื่อจัดการพนักงาน');
+        if (pin === null) {
+          window.location.href = 'index.html';
+          return;
+        }
+        pin = pin.trim();
+      }
+      if (!isValidPin(pin)) {
+        alert('PIN ต้องเป็นตัวเลข 6 หลัก');
+        window.location.href = 'index.html';
+        return;
+      }
+      try {
+        await apiPost({ action: 'verifyAdminPin', adminPin: pin });
+        sessionStorage.setItem(ADMIN_PIN_KEY, pin);
+        await loadUsers();
+      } catch (error) {
+        sessionStorage.removeItem(ADMIN_PIN_KEY);
+        alert(error.message || 'PIN ไม่ถูกต้อง');
+        window.location.href = 'index.html';
+      }
+    }
+
+    async function loadUsers() {
+      showMsg('กำลังโหลดรายชื่อ...', '');
+      try {
+        const users = await apiPost({ action: 'listUsers', adminPin: getAdminPin() });
+        renderUsers(users);
+        hideMsg();
+      } catch (error) {
+        showMsg(error.message || 'โหลดรายชื่อไม่สำเร็จ', 'error');
+      }
+    }
+
+    function renderUsers(users) {
+      listEl.innerHTML = '';
+      if (!users || users.length === 0) {
+        listEl.innerHTML = '<div class="empty">ยังไม่มีพนักงานที่ลงทะเบียน</div>';
+        return;
+      }
+      users.forEach(user => {
+        const card = document.createElement('div');
+        card.className = 'employee-card';
+        card.innerHTML =
+          '<div class="avatar">👤</div>' +
+          '<div class="employee-info">' +
+            '<div class="employee-name"></div>' +
+            '<div class="employee-meta"></div>' +
+          '</div>' +
+          '<button class="btn btn-delete" type="button">ลบ</button>';
+        card.querySelector('.employee-name').innerText = user.name;
+        card.querySelector('.employee-meta').innerText = user.registeredAt ? 'ลงทะเบียน: ' + user.registeredAt : 'ลงทะเบียนแล้ว';
+        card.querySelector('.btn-delete').onclick = () => deleteUser(user.name);
+        listEl.appendChild(card);
+      });
+    }
+
+    async function deleteUser(name) {
+      if (!confirm('ลบพนักงาน "' + name + '" ออกจากระบบ?')) return;
+      showMsg('กำลังลบ...', '');
+      try {
+        const result = await apiPost({ action: 'deleteUser', name, adminPin: getAdminPin() });
+        showMsg(result.message || 'ลบเรียบร้อย', 'success');
+        await loadUsers();
+      } catch (error) {
+        showMsg(error.message || 'ลบไม่สำเร็จ', 'error');
+      }
+    }
+
+    function showMsg(text, type) {
+      msgEl.style.display = 'block';
+      msgEl.innerText = text;
+      msgEl.className = type === 'error' ? 'msg-error' : type === 'success' ? 'msg-success' : '';
+    }
+
+    function hideMsg() {
+      msgEl.style.display = 'none';
+      msgEl.innerText = '';
+      msgEl.className = '';
+    }
+  </script>
+</body>
+</html>

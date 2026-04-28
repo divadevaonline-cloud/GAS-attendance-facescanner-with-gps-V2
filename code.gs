@@ -38,6 +38,10 @@ function doPost(e) {
 
   if (action === 'verifyAdminPin') {
     result = verifyAdminPin(data.adminPin) || { success: true, message: 'PIN ถูกต้อง' };
+  } else if (action === 'listUsers') {
+    result = verifyAdminPin(data.adminPin) || listUsers();
+  } else if (action === 'deleteUser') {
+    result = verifyAdminPin(data.adminPin) || deleteUser(data.name);
   } else if (action === 'registerUser') {
     result = verifyAdminPin(data.adminPin) || registerUser(data.name, data.faceDescriptor);
   } else if (action === 'logAttendance') {
@@ -88,6 +92,43 @@ function getKnownFaces() {
     }
   }
   return users;
+}
+
+function listUsers() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Users');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getDisplayValues();
+  return data
+    .map(function(row, index) {
+      const name = String(row[0] || '').trim();
+      if (!name) return null;
+      return {
+        name: name,
+        registeredAt: row[2] || '',
+        rowNumber: index + 2
+      };
+    })
+    .filter(Boolean);
+}
+
+function deleteUser(name) {
+  name = String(name || '').trim();
+  if (!name) return { error: 'ไม่พบชื่อพนักงานที่ต้องการลบ' };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Users');
+  if (!sheet || sheet.getLastRow() < 2) return { error: 'ยังไม่มีข้อมูลพนักงาน' };
+
+  const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues();
+  for (let i = names.length - 1; i >= 0; i--) {
+    if (String(names[i][0] || '').trim() === name) {
+      sheet.deleteRow(i + 2);
+      return { success: true, message: 'ลบพนักงานเรียบร้อย: ' + name };
+    }
+  }
+  return { error: 'ไม่พบพนักงาน: ' + name };
 }
 
 // --- ส่วนบันทึกเวลา (Attendance) ---
