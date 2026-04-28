@@ -225,13 +225,15 @@
       try {
         await verifyAdminPinWithApi(pin.trim());
         sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
-        const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ\n3 = จัดการพนักงาน');
+        const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ\n3 = จัดการพนักงาน\n4 = รายงานเวลา');
         if (choice === '1') {
           window.location.href = 'register.html';
         } else if (choice === '2') {
           window.location.href = 'config.html';
         } else if (choice === '3') {
           window.location.href = 'employees.html';
+        } else if (choice === '4') {
+          window.location.href = 'report.html';
         }
       } catch (error) {
         sessionStorage.removeItem(ADMIN_PIN_KEY);

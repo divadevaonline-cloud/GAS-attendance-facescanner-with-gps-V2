@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>รายงานเวลาเข้างาน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="js/api-config.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
+      color: #e2e8f0;
+      padding: 28px 16px 60px;
+    }
+    .container { width: 100%; max-width: 960px; margin: 0 auto; }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #94a3b8; text-decoration: none; font-size: 0.9em;
+      padding: 7px 12px; border-radius: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 1.55em; font-weight: 700;
+      background: linear-gradient(135deg, #a5b4fc, #e2e8f0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .subtitle { color: #64748b; font-size: 0.86em; margin-bottom: 20px; }
+    .panel, .summary-card, .table-wrap {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .panel { padding: 16px; margin-bottom: 16px; }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+      gap: 12px;
+      align-items: end;
+    }
+    label {
+      display: block;
+      color: #94a3b8;
+      font-size: 0.8em;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #e2e8f0;
+      font-family: 'Sarabun', sans-serif;
+      outline: none;
+    }
+    .btn {
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 16px;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      box-shadow: 0 4px 18px rgba(16,185,129,0.3);
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 4px 0 16px;
+    }
+    .pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(99,102,241,0.14);
+      border: 1px solid rgba(99,102,241,0.26);
+      color: #c7d2fe;
+      font-size: 0.82em;
+      font-weight: 600;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .summary-card { padding: 14px; }
+    .employee-name {
+      font-size: 1.05em;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 10px;
+      word-break: break-word;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .stat {
+      border-radius: 12px;
+      background: rgba(15,23,42,0.35);
+      padding: 9px;
+    }
+    .stat span { display: block; color: #64748b; font-size: 0.74em; }
+    .stat strong { display: block; color: #e2e8f0; font-size: 1.05em; margin-top: 2px; }
+    .dates {
+      color: #fca5a5;
+      font-size: 0.78em;
+      line-height: 1.45;
+      margin-top: 10px;
+      word-break: break-word;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      text-align: left;
+      font-size: 0.9em;
+    }
+    th { color: #94a3b8; font-size: 0.78em; text-transform: uppercase; }
+    td { color: #e2e8f0; }
+    .status {
+      display: inline-flex;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(148,163,184,0.12);
+      color: #cbd5e1;
+      font-size: 0.86em;
+      font-weight: 600;
+    }
+    .status-ok { background: rgba(16,185,129,0.14); color: #6ee7b7; }
+    .status-warn { background: rgba(245,158,11,0.14); color: #fcd34d; }
+    .status-bad { background: rgba(239,68,68,0.14); color: #fca5a5; }
+    .empty, #msg {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 16px;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 12px;
+    }
+    #msg { display: none; }
+    .msg-error { color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+    @media (max-width: 640px) {
+      .filters { grid-template-columns: 1fr; }
+      .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-btn">← กลับ</a>
+    <h2>รายงานเวลาเข้างาน</h2>
+    <p class="subtitle">เลือกช่วงวันที่เพื่อดู Time In, Time Out, ชั่วโมงรวม และวันที่ไม่ได้ลงเวลา</p>
+
+    <div class="panel">
+      <div class="filters">
+        <div>
+          <label>วันที่เริ่มต้น</label>
+          <input type="date" id="fromDate">
+        </div>
+        <div>
+          <label>วันที่สิ้นสุด</label>
+          <input type="date" id="toDate">
+        </div>
+        <button class="btn btn-primary" onclick="loadReport()">ดูรายงาน</button>
+      </div>
+    </div>
+
+    <div id="msg"></div>
+    <div id="report"></div>
+  </div>
+
+  <script>
+    const API_URL = localStorage.getItem('gasApiUrl') || GAS_API_URL;
+    const ADMIN_PIN_KEY = 'attendanceAdminPin';
+    const msgEl = document.getElementById('msg');
+    const reportEl = document.getElementById('report');
+
+    window.addEventListener('load', init);
+
+    function isValidPin(pin) {
+      return /^\d{6}$/.test(String(pin || '').trim());
+    }
+
+    function getAdminPin() {
+      return sessionStorage.getItem(ADMIN_PIN_KEY) || '';
+    }
+
+    async function apiPost(payload) {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    }
+
+    async function init() {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById('fromDate').value = toDateInput(firstDay);
+      document.getElementById('toDate').value = toDateInput(today);
+
+      let pin = getAdminPin();
+      if (!isValidPin(pin)) {
+        pin = prompt('ใส่ Admin PIN 6 หลักเพื่อดูรายงาน');
+        if (pin === null) {
+          window.location.href = 'index.html';
+          return;
+        }
+        pin = pin.trim();
+      }
+      if (!isValidPin(pin)) {
+        alert('PIN ต้องเป็นตัวเลข 6 หลัก');
+        window.location.href = 'index.html';
+        return;
+      }
+      try {
+        await apiPost({ action: 'verifyAdminPin', adminPin: pin });
+        sessionStorage.setItem(ADMIN_PIN_KEY, pin);
+        await loadReport();
+      } catch (error) {
+        sessionStorage.removeItem(ADMIN_PIN_KEY);
+        alert(error.message || 'PIN ไม่ถูกต้อง');
+        window.location.href = 'index.html';
+      }
+    }
+
+    async function loadReport() {
+      const fromDate = document.getElementById('fromDate').value;
+      const toDate = document.getElementById('toDate').value;
+      if (!fromDate || !toDate) return showMsg('กรุณาเลือกวันที่ให้ครบ', 'error');
+
+      showMsg('กำลังโหลดรายงาน...', '');
+      try {
+        const data = await apiPost({
+          action: 'getAttendanceReport',
+          fromDate,
+          toDate,
+          adminPin: getAdminPin()
+        });
+        hideMsg();
+        renderReport(data);
+      } catch (error) {
+        reportEl.innerHTML = '';
+        showMsg(error.message || 'โหลดรายงานไม่สำเร็จ', 'error');
+      }
+    }
+
+    function renderReport(data) {
+      if (!data.summary || data.summary.length === 0) {
+        reportEl.innerHTML = '<div class="empty">ยังไม่มีพนักงานที่ลงทะเบียน</div>';
+        return;
+      }
+
+      const workDayNames = (data.workDays || []).map(dayName).join(', ');
+      const holidays = (data.specialHolidays || []).length ? data.specialHolidays.join(', ') : 'ไม่มี';
+      reportEl.innerHTML =
+        '<div class="meta">' +
+          '<span class="pill">ช่วงวันที่: ' + escapeHtml(data.fromDate) + ' ถึง ' + escapeHtml(data.toDate) + '</span>' +
+          '<span class="pill">พนักงาน: ' + data.employeeCount + ' คน</span>' +
+          '<span class="pill">วันทำงาน: ' + escapeHtml(workDayNames) + '</span>' +
+          '<span class="pill">วันหยุดพิเศษ: ' + escapeHtml(holidays) + '</span>' +
+        '</div>' +
+        '<div class="summary-grid">' + data.summary.map(renderSummaryCard).join('') + '</div>' +
+        '<div class="table-wrap">' +
+          '<table>' +
+            '<thead><tr><th>วันที่</th><th>พนักงาน</th><th>เข้า</th><th>ออก</th><th>ชั่วโมง</th><th>สถานะ</th></tr></thead>' +
+            '<tbody>' + data.daily.map(renderDailyRow).join('') + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }
+
+    function renderSummaryCard(item) {
+      const absentDates = item.absentDates && item.absentDates.length
+        ? '<div class="dates">หยุด/ไม่ลงเวลา: ' + escapeHtml(item.absentDates.join(', ')) + '</div>'
+        : '';
+      const incompleteDates = item.incompleteDates && item.incompleteDates.length
+        ? '<div class="dates">รายการไม่ครบ: ' + escapeHtml(item.incompleteDates.join(', ')) + '</div>'
+        : '';
+      return '<div class="summary-card">' +
+        '<div class="employee-name">' + escapeHtml(item.name) + '</div>' +
+        '<div class="stats">' +
+          stat('มาทำงาน', item.workedDays + ' วัน') +
+          stat('ชั่วโมงรวม', item.totalHours + ' ชม.') +
+          stat('หยุด/ไม่ลงเวลา', item.absentDays + ' วัน') +
+          stat('ลืมลงเวลา', item.incompleteDays + ' วัน') +
+          stat('วันหยุดประจำ', item.offDays + ' วัน') +
+          stat('วันหยุดพิเศษ', item.specialHolidayDays + ' วัน') +
+        '</div>' +
+        absentDates +
+        incompleteDates +
+      '</div>';
+    }
+
+    function renderDailyRow(row) {
+      return '<tr>' +
+        '<td>' + escapeHtml(row.date) + '</td>' +
+        '<td>' + escapeHtml(row.name) + '</td>' +
+        '<td>' + escapeHtml(row.timeIn || '-') + '</td>' +
+        '<td>' + escapeHtml(row.timeOut || '-') + '</td>' +
+        '<td>' + escapeHtml(String(row.hours || 0)) + '</td>' +
+        '<td><span class="' + statusClass(row.status) + '">' + escapeHtml(row.status) + '</span></td>' +
+      '</tr>';
+    }
+
+    function stat(label, value) {
+      return '<div class="stat"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>';
+    }
+
+    function statusClass(status) {
+      if (status === 'ออกงานแล้ว' || status === 'มาทำงานวันหยุด') return 'status status-ok';
+      if (status === 'ลืมออกงาน' || status === 'มีเวลาออก ไม่มีเวลาเข้า') return 'status status-warn';
+      if (status === 'หยุด/ไม่ลงเวลา') return 'status status-bad';
+      return 'status';
+    }
+
+    function dayName(day) {
+      return ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'][Number(day)] || '';
+    }
+
+    function toDateInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return year + '-' + month + '-' + day;
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function showMsg(text, type) {
+      msgEl.style.display = 'block';
+      msgEl.innerText = text;
+      msgEl.className = type === 'error' ? 'msg-error' : '';
+    }
+
+    function hideMsg() {
+      msgEl.style.display = 'none';
+      msgEl.innerText = '';
+      msgEl.className = '';
+    }
+  </script>
+</body>
+</html>

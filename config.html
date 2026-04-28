@@ -94,7 +94,7 @@
       display: block; font-size: 0.82em; font-weight: 600;
       color: #94a3b8; margin-bottom: 6px; letter-spacing: 0.03em;
     }
-    input {
+    input, textarea {
       width: 100%;
       padding: 12px 14px;
       background: rgba(255,255,255,0.06);
@@ -107,8 +107,13 @@
       transition: all 0.3s ease;
       margin-bottom: 14px;
     }
-    input::placeholder { color: #334155; }
-    input:focus {
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    input::placeholder, textarea::placeholder { color: #334155; }
+    input:focus, textarea:focus {
       border-color: rgba(99,102,241,0.5);
       background: rgba(99,102,241,0.07);
       box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
@@ -162,6 +167,31 @@
 
     .input-row {
       display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .day-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #cbd5e1;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+    .day-chip input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #10b981;
     }
 
     .divider {
@@ -228,6 +258,29 @@
     <label>รัศมีที่ยอมรับ (กิโลเมตร)</label>
     <input type="number" step="0.01" id="radius" placeholder="เช่น 0.1 คือ 100 เมตร">
     <p class="note">* ใส่ 0 หากไม่ต้องการจำกัดพื้นที่</p>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="section-icon indigo">📅</div>
+      <span class="section-title-text">วันทำงานและวันหยุด</span>
+    </div>
+
+    <label>เลือกวันทำงานประจำ</label>
+    <div class="day-grid">
+      <label class="day-chip"><input type="checkbox" name="workDay" value="1" checked> จันทร์</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="2" checked> อังคาร</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="3" checked> พุธ</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="4" checked> พฤหัส</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="5" checked> ศุกร์</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="6" checked> เสาร์</label>
+      <label class="day-chip"><input type="checkbox" name="workDay" value="0"> อาทิตย์</label>
+    </div>
+    <p class="note">วันที่ไม่ได้เลือกจะนับเป็นวันหยุดประจำในรายงาน</p>
+
+    <label>วันหยุดพิเศษ</label>
+    <textarea id="specialHolidays" placeholder="เช่น&#10;2026-01-01&#10;2026-04-13"></textarea>
+    <p class="note">ใส่รูปแบบ YYYY-MM-DD แยกด้วยบรรทัดใหม่หรือเครื่องหมายจุลภาค</p>
   </div>
 
   <!-- Actions -->
@@ -303,11 +356,20 @@
     fetch(apiUrl + '?action=getConfig')
       .then(r => r.json())
       .then(config => {
-        document.getElementById('lat').value    = config.lat    || '';
-        document.getElementById('lng').value    = config.lng    || '';
-        document.getElementById('radius').value = config.radius || '0.5';
+        document.getElementById('lat').value = config.lat !== undefined ? config.lat : '';
+        document.getElementById('lng').value = config.lng !== undefined ? config.lng : '';
+        document.getElementById('radius').value = config.radius !== undefined ? config.radius : '0.5';
+        setWorkDays(config.workDays || [1, 2, 3, 4, 5, 6]);
+        document.getElementById('specialHolidays').value = (config.specialHolidays || []).join('\n');
       })
       .catch(() => {}); // ถ้าโหลดไม่ได้ก็ข้ามไป
+  }
+
+  function setWorkDays(days) {
+    const selected = new Set((days || []).map(day => String(day)));
+    document.querySelectorAll('input[name="workDay"]').forEach(input => {
+      input.checked = selected.has(input.value);
+    });
   }
 
   function getCurrentLocation() {
@@ -327,9 +389,12 @@
     const lat    = document.getElementById('lat').value;
     const lng    = document.getElementById('lng').value;
     const radius = document.getElementById('radius').value;
+    const workDays = Array.from(document.querySelectorAll('input[name="workDay"]:checked')).map(input => input.value);
+    const specialHolidays = document.getElementById('specialHolidays').value;
 
     if (!apiUrl) return showMsg('❌ กรุณากรอก API URL', 'error');
     if (!lat || !lng || !radius) return showMsg('❌ กรุณากรอกข้อมูล GPS ให้ครบ', 'error');
+    if (workDays.length === 0) return showMsg('❌ กรุณาเลือกวันทำงานอย่างน้อย 1 วัน', 'error');
 
     // บันทึก API URL ลง localStorage
     localStorage.setItem('gasApiUrl', apiUrl);
@@ -338,7 +403,7 @@
     try {
       const res = await fetch(apiUrl, {
         method: 'POST',
-        body: JSON.stringify({ action: 'saveConfig', lat, lng, radius, adminPin: getAdminPin() })
+        body: JSON.stringify({ action: 'saveConfig', lat, lng, radius, workDays, specialHolidays, adminPin: getAdminPin() })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
