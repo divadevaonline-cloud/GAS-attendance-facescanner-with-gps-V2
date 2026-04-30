@@ -125,6 +125,7 @@
 
     .btn-register:hover { box-shadow: 0 8px 30px rgba(99,102,241,0.35); border-color: rgba(99,102,241,0.5); }
     .btn-scan:hover     { box-shadow: 0 8px 30px rgba(16,185,129,0.35); border-color: rgba(16,185,129,0.5); }
+    .btn-report:hover   { box-shadow: 0 8px 30px rgba(14,165,233,0.32); border-color: rgba(56,189,248,0.45); }
     .btn-config:hover   { box-shadow: 0 8px 30px rgba(100,116,139,0.25); border-color: rgba(148,163,184,0.4); }
 
     .card-icon {
@@ -136,6 +137,7 @@
     }
     .btn-register .card-icon { background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
     .btn-scan     .card-icon { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16,185,129,0.4); }
+    .btn-report   .card-icon { background: linear-gradient(135deg, #0ea5e9, #2563eb); box-shadow: 0 4px 15px rgba(14,165,233,0.35); }
     .btn-config   .card-icon { background: linear-gradient(135deg, #475569, #334155); box-shadow: 0 4px 15px rgba(71,85,105,0.4); }
 
     .card-text { flex: 1; text-align: left; }
@@ -183,6 +185,15 @@
       <span class="card-arrow">›</span>
     </a>
 
+    <a href="report.html" class="btn-menu btn-report">
+      <div class="card-icon">📊</div>
+      <div class="card-text">
+        <div class="card-title">รายงานเวลาเข้างาน</div>
+        <div class="card-desc">ดูสรุปเข้างาน ออกงาน และชั่วโมงรวม</div>
+      </div>
+      <span class="card-arrow">›</span>
+    </a>
+
     <button type="button" class="btn-menu btn-config" onclick="unlockAdmin()">
       <div class="card-icon">🔐</div>
       <div class="card-text">
@@ -225,15 +236,13 @@
       try {
         await verifyAdminPinWithApi(pin.trim());
         sessionStorage.setItem(ADMIN_PIN_KEY, pin.trim());
-        const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ\n3 = จัดการพนักงาน\n4 = รายงานเวลา');
+        const choice = prompt('เลือกเมนูผู้ดูแลระบบ\n1 = ลงทะเบียนพนักงาน\n2 = ตั้งค่าระบบ\n3 = จัดการพนักงาน');
         if (choice === '1') {
           window.location.href = 'register.html';
         } else if (choice === '2') {
           window.location.href = 'config.html';
         } else if (choice === '3') {
           window.location.href = 'employees.html';
-        } else if (choice === '4') {
-          window.location.href = 'report.html';
         }
       } catch (error) {
         sessionStorage.removeItem(ADMIN_PIN_KEY);
