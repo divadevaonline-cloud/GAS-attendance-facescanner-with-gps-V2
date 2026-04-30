@@ -49,7 +49,7 @@ function doPost(e) {
   } else if (action === 'saveConfig') {
     result = verifyAdminPin(data.adminPin) || saveConfig(data.lat, data.lng, data.radius, data.workDays, data.specialHolidays);
   } else if (action === 'getAttendanceReport') {
-    result = verifyAdminPin(data.adminPin) || getAttendanceReport(data.fromDate, data.toDate);
+    result = verifyAdminPin(data.adminPin) || getAttendanceReport(data.fromDate, data.toDate, data.employeeName);
   } else {
     result = { error: 'Unknown action: ' + action };
   }
@@ -61,7 +61,7 @@ function doPost(e) {
 
 // --- ส่วนจัดการใบหน้า (Users) ---
 function registerUser(name, faceDescriptor) {
-  name = String(name || '').trim();
+  name = normalizeEmployeeName(name);
   if (!name) return { error: 'กรุณากรอกชื่อพนักงาน' };
   if (!Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
     return { error: 'ข้อมูลใบหน้าไม่ถูกต้อง' };
@@ -70,6 +70,13 @@ function registerUser(name, faceDescriptor) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('Users');
   if (!sheet) sheet = ss.insertSheet('Users');
+
+  const existingRow = findUserRowByName(sheet, name);
+  if (existingRow) {
+    sheet.getRange(existingRow, 1, 1, 3).setValues([[name, JSON.stringify(faceDescriptor), new Date()]]);
+    removeDuplicateUserRows(sheet, name, existingRow);
+    return { success: true, message: 'อัปเดตข้อมูลใบหน้าของ ' + name + ' เรียบร้อย' };
+  }
 
   sheet.appendRow([name, JSON.stringify(faceDescriptor), new Date()]);
   return { success: true, message: 'บันทึกข้อมูลหน้าเรียบร้อย' };
@@ -83,17 +90,17 @@ function getKnownFaces() {
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
 
-  let users = [];
+  const usersByName = {};
   for (let i = 1; i < data.length; i++) {
-    const name = data[i][0];
+    const name = normalizeEmployeeName(data[i][0]);
     const jsonStr = data[i][1];
     if (name && jsonStr) {
       try {
-        users.push({ label: name, descriptor: JSON.parse(jsonStr) });
+        usersByName[name] = { label: name, descriptor: JSON.parse(jsonStr) };
       } catch (e) {}
     }
   }
-  return users;
+  return Object.keys(usersByName).sort().map(function(name) { return usersByName[name]; });
 }
 
 function listUsers() {
@@ -102,21 +109,21 @@ function listUsers() {
   if (!sheet || sheet.getLastRow() < 2) return [];
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getDisplayValues();
-  return data
-    .map(function(row, index) {
-      const name = String(row[0] || '').trim();
-      if (!name) return null;
-      return {
-        name: name,
-        registeredAt: row[2] || '',
-        rowNumber: index + 2
-      };
-    })
-    .filter(Boolean);
+  const usersByName = {};
+  data.forEach(function(row, index) {
+    const name = normalizeEmployeeName(row[0]);
+    if (!name) return;
+    usersByName[name] = {
+      name: name,
+      registeredAt: row[2] || '',
+      rowNumber: index + 2
+    };
+  });
+  return Object.keys(usersByName).sort().map(function(name) { return usersByName[name]; });
 }
 
 function deleteUser(name) {
-  name = String(name || '').trim();
+  name = normalizeEmployeeName(name);
   if (!name) return { error: 'ไม่พบชื่อพนักงานที่ต้องการลบ' };
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -124,12 +131,14 @@ function deleteUser(name) {
   if (!sheet || sheet.getLastRow() < 2) return { error: 'ยังไม่มีข้อมูลพนักงาน' };
 
   const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues();
+  let deletedCount = 0;
   for (let i = names.length - 1; i >= 0; i--) {
-    if (String(names[i][0] || '').trim() === name) {
+    if (normalizeEmployeeName(names[i][0]) === name) {
       sheet.deleteRow(i + 2);
-      return { success: true, message: 'ลบพนักงานเรียบร้อย: ' + name };
+      deletedCount++;
     }
   }
+  if (deletedCount > 0) return { success: true, message: 'ลบพนักงานเรียบร้อย: ' + name };
   return { error: 'ไม่พบพนักงาน: ' + name };
 }
 
@@ -267,14 +276,16 @@ function getConfig() {
   return config;
 }
 
-function getAttendanceReport(fromDate, toDate) {
+function getAttendanceReport(fromDate, toDate, employeeName) {
   const startDate = parseIsoDate(fromDate);
   const endDate = parseIsoDate(toDate);
   if (!startDate || !endDate) return { error: 'กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด' };
   if (startDate.getTime() > endDate.getTime()) return { error: 'วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด' };
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const employees = listUsers().map(function(user) { return user.name; }).sort();
+  const selectedEmployee = normalizeEmployeeName(employeeName);
+  let employees = listUsers().map(function(user) { return user.name; }).sort();
+  if (selectedEmployee) employees = employees.filter(function(name) { return normalizeEmployeeName(name) === selectedEmployee; });
   const config = getConfig();
   const workDaySet = {};
   config.workDays.forEach(function(day) { workDaySet[day] = true; });
@@ -305,7 +316,7 @@ function getAttendanceReport(fromDate, toDate) {
     const isWorkday = !!workDaySet[dateObj.getDay()] && !isSpecialHoliday;
 
     employees.forEach(function(name) {
-      const record = attendanceMap[name + '|' + dateKey] || {};
+      const record = attendanceMap[normalizeEmployeeName(name) + '|' + dateKey] || {};
       const timeIn = record.timeIn || '';
       const timeOut = record.timeOut || '';
       const hours = calculateHours(timeIn, timeOut);
@@ -358,6 +369,7 @@ function getAttendanceReport(fromDate, toDate) {
     toDate: formatDateKey(endDate),
     workDays: config.workDays,
     specialHolidays: config.specialHolidays,
+    selectedEmployee: selectedEmployee,
     employeeCount: employees.length,
     summary: summary,
     daily: daily
@@ -376,19 +388,45 @@ function buildAttendanceMap(ss) {
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getDisplayValues();
 
   rows.forEach(function(row) {
-    const name = String(row[headerIndex['Name']] || '').trim();
+    const name = normalizeEmployeeName(row[headerIndex['Name']]);
     const dateKey = parseDateTextToKey(row[headerIndex['Date']]);
     if (!name || !dateKey) return;
 
     const oldTime = row[headerIndex['Time']] || '';
     const timeIn = row[headerIndex['Time In']] || oldTime || '';
     const timeOut = row[headerIndex['Time Out']] || '';
-    map[name + '|' + dateKey] = {
+    map[normalizeEmployeeName(name) + '|' + dateKey] = {
       timeIn: String(timeIn || '').trim(),
       timeOut: String(timeOut || '').trim()
     };
   });
   return map;
+}
+
+function normalizeEmployeeName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function findUserRowByName(sheet, name) {
+  if (!sheet || sheet.getLastRow() < 2) return 0;
+  const targetName = normalizeEmployeeName(name);
+  const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues();
+  for (let i = 0; i < names.length; i++) {
+    if (normalizeEmployeeName(names[i][0]) === targetName) return i + 2;
+  }
+  return 0;
+}
+
+function removeDuplicateUserRows(sheet, name, keepRow) {
+  if (!sheet || sheet.getLastRow() < 2) return;
+  const targetName = normalizeEmployeeName(name);
+  const names = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getDisplayValues();
+  for (let i = names.length - 1; i >= 0; i--) {
+    const rowNumber = i + 2;
+    if (rowNumber !== keepRow && normalizeEmployeeName(names[i][0]) === targetName) {
+      sheet.deleteRow(rowNumber);
+    }
+  }
 }
 
 function normalizeWorkDays(value) {

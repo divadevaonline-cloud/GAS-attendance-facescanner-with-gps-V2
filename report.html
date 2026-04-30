@@ -43,7 +43,7 @@
     .panel { padding: 16px; margin-bottom: 16px; }
     .filters {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
       gap: 12px;
       align-items: end;
     }
@@ -54,7 +54,7 @@
       font-weight: 600;
       margin-bottom: 6px;
     }
-    input {
+    input, select {
       width: 100%;
       padding: 12px 14px;
       border-radius: 12px;
@@ -63,6 +63,10 @@
       color: #e2e8f0;
       font-family: 'Sarabun', sans-serif;
       outline: none;
+    }
+    select option {
+      background: #0f172a;
+      color: #e2e8f0;
     }
     .btn {
       border: none;
@@ -183,6 +187,12 @@
           <label>วันที่สิ้นสุด</label>
           <input type="date" id="toDate">
         </div>
+        <div>
+          <label>พนักงาน</label>
+          <select id="employeeName">
+            <option value="">พนักงานทั้งหมด</option>
+          </select>
+        </div>
         <button class="btn btn-primary" onclick="loadReport()">ดูรายงาน</button>
       </div>
     </div>
@@ -196,6 +206,7 @@
     const ADMIN_PIN_KEY = 'attendanceAdminPin';
     const msgEl = document.getElementById('msg');
     const reportEl = document.getElementById('report');
+    const employeeSelect = document.getElementById('employeeName');
 
     window.addEventListener('load', init);
 
@@ -240,6 +251,7 @@
       try {
         await apiPost({ action: 'verifyAdminPin', adminPin: pin });
         sessionStorage.setItem(ADMIN_PIN_KEY, pin);
+        await loadEmployeeOptions();
         await loadReport();
       } catch (error) {
         sessionStorage.removeItem(ADMIN_PIN_KEY);
@@ -251,6 +263,7 @@
     async function loadReport() {
       const fromDate = document.getElementById('fromDate').value;
       const toDate = document.getElementById('toDate').value;
+      const employeeName = employeeSelect.value;
       if (!fromDate || !toDate) return showMsg('กรุณาเลือกวันที่ให้ครบ', 'error');
 
       showMsg('กำลังโหลดรายงาน...', '');
@@ -259,6 +272,7 @@
           action: 'getAttendanceReport',
           fromDate,
           toDate,
+          employeeName,
           adminPin: getAdminPin()
         });
         hideMsg();
@@ -269,6 +283,19 @@
       }
     }
 
+    async function loadEmployeeOptions() {
+      const currentValue = employeeSelect.value;
+      const users = await apiPost({ action: 'listUsers', adminPin: getAdminPin() });
+      employeeSelect.innerHTML = '<option value="">พนักงานทั้งหมด</option>';
+      users.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.name;
+        option.innerText = user.name;
+        employeeSelect.appendChild(option);
+      });
+      employeeSelect.value = users.some(user => user.name === currentValue) ? currentValue : '';
+    }
+
     function renderReport(data) {
       if (!data.summary || data.summary.length === 0) {
         reportEl.innerHTML = '<div class="empty">ยังไม่มีพนักงานที่ลงทะเบียน</div>';
@@ -277,10 +304,12 @@
 
       const workDayNames = (data.workDays || []).map(dayName).join(', ');
       const holidays = (data.specialHolidays || []).length ? data.specialHolidays.join(', ') : 'ไม่มี';
+      const selectedText = data.selectedEmployee ? data.selectedEmployee : 'ทั้งหมด';
       reportEl.innerHTML =
         '<div class="meta">' +
           '<span class="pill">ช่วงวันที่: ' + escapeHtml(data.fromDate) + ' ถึง ' + escapeHtml(data.toDate) + '</span>' +
-          '<span class="pill">พนักงาน: ' + data.employeeCount + ' คน</span>' +
+          '<span class="pill">พนักงาน: ' + escapeHtml(selectedText) + '</span>' +
+          '<span class="pill">จำนวน: ' + data.employeeCount + ' คน</span>' +
           '<span class="pill">วันทำงาน: ' + escapeHtml(workDayNames) + '</span>' +
           '<span class="pill">วันหยุดพิเศษ: ' + escapeHtml(holidays) + '</span>' +
         '</div>' +
