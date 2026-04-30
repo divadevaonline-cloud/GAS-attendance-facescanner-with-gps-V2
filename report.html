@@ -26,13 +26,11 @@
     }
     h2 {
       font-size: 1.55em; font-weight: 700;
-      background: linear-gradient(135deg, #a5b4fc, #e2e8f0);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: #f8fafc;
+      text-shadow: 0 2px 18px rgba(56,189,248,0.22);
       margin-bottom: 6px;
     }
-    .subtitle { color: #64748b; font-size: 0.86em; margin-bottom: 20px; }
+    .subtitle { color: #cbd5e1; font-size: 0.86em; margin-bottom: 20px; }
     .panel, .summary-card, .table-wrap {
       background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.12);
@@ -252,12 +250,17 @@
         await apiPost({ action: 'verifyAdminPin', adminPin: pin });
         sessionStorage.setItem(ADMIN_PIN_KEY, pin);
         await loadEmployeeOptions();
-        await loadReport();
+        renderInitialState();
       } catch (error) {
         sessionStorage.removeItem(ADMIN_PIN_KEY);
         alert(error.message || 'PIN ไม่ถูกต้อง');
         window.location.href = 'index.html';
       }
+    }
+
+    function renderInitialState() {
+      hideMsg();
+      reportEl.innerHTML = '<div class="empty">เลือกช่วงวันที่และพนักงาน แล้วกดดูรายงาน</div>';
     }
 
     async function loadReport() {
