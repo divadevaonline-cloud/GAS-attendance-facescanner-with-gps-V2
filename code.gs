@@ -46,6 +46,8 @@ function doPost(e) {
     result = verifyAdminPin(data.adminPin) || registerUser(data.name, data.faceDescriptor);
   } else if (action === 'logAttendance') {
     result = logAttendance(data.name, data.lat, data.lng, data.attendanceType);
+  } else if (action === 'getAttendanceStatus') {
+    result = getAttendanceStatus(data.name);
   } else if (action === 'saveConfig') {
     result = verifyAdminPin(data.adminPin) || saveConfig(data.lat, data.lng, data.radius, data.workDays, data.specialHolidays);
   } else if (action === 'getAttendanceReport') {
@@ -144,7 +146,7 @@ function deleteUser(name) {
 
 // --- ส่วนบันทึกเวลา (Attendance) ---
 function logAttendance(name, lat, lng, attendanceType) {
-  name = String(name || '').trim();
+  name = normalizeEmployeeName(name);
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
   const type = String(attendanceType || 'in').toLowerCase() === 'out' ? 'out' : 'in';
@@ -169,7 +171,20 @@ function logAttendance(name, lat, lng, attendanceType) {
   const mapLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'd/M/yyyy');
   const timeStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
-  const rowNumber = findAttendanceRow(sheet, name, dateStr) || sheet.getLastRow() + 1;
+  let rowNumber = findAttendanceRow(sheet, name, dateStr);
+  const existing = rowNumber ? getAttendanceRowStatus(sheet, rowNumber) : { timeIn: '', timeOut: '' };
+
+  if (type === 'in' && existing.timeIn) {
+    if (existing.timeOut) return { error: 'วันนี้บันทึกเวลาเข้าและออกงานครบแล้ว' };
+    return { error: 'วันนี้มีเวลาเข้างานแล้ว กรุณากดยืนยันออกงาน' };
+  }
+
+  if (type === 'out') {
+    if (!rowNumber || !existing.timeIn) return { error: 'ยังไม่มีเวลาเข้างานของวันนี้ กรุณาเข้างานก่อน' };
+    if (existing.timeOut) return { error: 'วันนี้บันทึกเวลาออกงานแล้ว' };
+  }
+
+  if (!rowNumber) rowNumber = sheet.getLastRow() + 1;
 
   if (rowNumber > sheet.getLastRow()) {
     sheet.getRange(rowNumber, 1, 1, 10).setValues([[
@@ -192,6 +207,38 @@ function logAttendance(name, lat, lng, attendanceType) {
   return { success: true, message: 'บันทึกเวลาเข้างานสำเร็จ' };
 }
 
+function getAttendanceStatus(name) {
+  name = normalizeEmployeeName(name);
+  if (!name) return { error: 'ไม่พบชื่อพนักงาน' };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ensureAttendanceSheet(ss);
+  const now = new Date();
+  const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'd/M/yyyy');
+  const rowNumber = findAttendanceRow(sheet, name, dateStr);
+  const status = rowNumber ? getAttendanceRowStatus(sheet, rowNumber) : { timeIn: '', timeOut: '' };
+  let nextAttendanceType = 'in';
+  let message = 'ยังไม่ได้เข้างานวันนี้';
+
+  if (status.timeIn && !status.timeOut) {
+    nextAttendanceType = 'out';
+    message = 'วันนี้เข้างานแล้ว กรุณายืนยันออกงาน';
+  } else if (status.timeIn && status.timeOut) {
+    nextAttendanceType = 'done';
+    message = 'วันนี้บันทึกเวลาเข้าและออกงานครบแล้ว';
+  }
+
+  return {
+    success: true,
+    name: name,
+    date: dateStr,
+    timeIn: status.timeIn,
+    timeOut: status.timeOut,
+    nextAttendanceType: nextAttendanceType,
+    message: message
+  };
+}
+
 function ensureAttendanceSheet(ss) {
   let sheet = ss.getSheetByName('Attendance');
   if (!sheet) sheet = ss.insertSheet('Attendance');
@@ -208,13 +255,22 @@ function ensureAttendanceSheet(ss) {
 function findAttendanceRow(sheet, name, dateStr) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
+  const targetName = normalizeEmployeeName(name);
   const values = sheet.getRange(2, 1, lastRow - 1, 2).getDisplayValues();
   for (let i = 0; i < values.length; i++) {
-    if (String(values[i][0]).trim() === name && String(values[i][1]).replace(/^'/, '').trim() === dateStr) {
+    if (normalizeEmployeeName(values[i][0]) === targetName && String(values[i][1]).replace(/^'/, '').trim() === dateStr) {
       return i + 2;
     }
   }
   return 0;
+}
+
+function getAttendanceRowStatus(sheet, rowNumber) {
+  const values = sheet.getRange(rowNumber, 3, 1, 2).getDisplayValues()[0];
+  return {
+    timeIn: String(values[0] || '').trim(),
+    timeOut: String(values[1] || '').trim()
+  };
 }
 
 // --- ส่วนจัดการ Config (GPS + Calendar) ---

@@ -221,6 +221,13 @@
       margin-bottom: 6px;
     }
     .score-text { color: #475569; font-size: 13px; margin-bottom: 20px; }
+    .attendance-state {
+      color: #cbd5e1;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+      min-height: 21px;
+    }
 
     .btn {
       border: none; border-radius: 14px; cursor: pointer; width: 100%;
@@ -309,6 +316,7 @@
     <div class="user-name" id="modalName">...</div>
     <div id="modalTime" class="time-badge">00:00</div>
     <div id="modalScore" class="score-text"></div>
+    <div id="attendanceState" class="attendance-state"></div>
     <button class="btn btn-confirm" id="btnConfirmIn" onclick="confirmAttendance('in')">✅ ยืนยันเข้างาน</button>
     <button class="btn btn-out" id="btnConfirmOut" onclick="confirmAttendance('out')">⏱️ ยืนยันออกงาน</button>
     <button class="btn btn-cancel" onclick="cancelAttendance()">ไม่ใช่ฉัน</button>
@@ -330,6 +338,7 @@
   let knownFaces   = [];
   let scanInterval = null;
   let currentMatch = null;
+  let currentAttendanceType = 'in';
   let currentLat   = null;
   let currentLng   = null;
 
@@ -487,8 +496,9 @@
   }
 
   // ===== Modal =====
-  function showModal(match) {
+  async function showModal(match) {
     currentMatch = match.name;
+    currentAttendanceType = 'in';
     document.getElementById('modalName').innerText  = match.name;
 
     const now = new Date();
@@ -497,14 +507,66 @@
 
     const pct = ((1 - match.distance) * 100).toFixed(1);
     document.getElementById('modalScore').innerText = 'ความเหมือน: ' + pct + '%';
+    setModalButtons('loading', 'กำลังตรวจสอบสถานะลงเวลาวันนี้...');
 
     confirmModal.style.display = 'flex';
     mainStatus.innerText = 'กรุณายืนยัน...';
+
+    try {
+      const status = await fetchAttendanceStatus(match.name);
+      applyAttendanceStatus(status);
+    } catch (e) {
+      setModalButtons('in', 'ตรวจสอบสถานะไม่ได้ ระบบจะให้ยืนยันเข้างานตามปกติ');
+    }
+  }
+
+  async function fetchAttendanceStatus(name) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'getAttendanceStatus',
+        name: name
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
+  function applyAttendanceStatus(status) {
+    if (status.nextAttendanceType === 'out') {
+      setModalButtons('out', 'เข้างานแล้ว' + (status.timeIn ? ' เวลา ' + status.timeIn : '') + ' กรุณายืนยันออกงาน');
+    } else if (status.nextAttendanceType === 'done') {
+      setModalButtons('done', 'วันนี้บันทึกเวลาเข้าและออกงานครบแล้ว');
+    } else {
+      setModalButtons('in', 'ยังไม่ได้เข้างานวันนี้ กรุณายืนยันเข้างาน');
+    }
+  }
+
+  function setModalButtons(state, message) {
+    const inBtn = document.getElementById('btnConfirmIn');
+    const outBtn = document.getElementById('btnConfirmOut');
+    document.getElementById('attendanceState').innerText = message || '';
+
+    inBtn.style.display = state === 'in' || state === 'loading' ? 'block' : 'none';
+    outBtn.style.display = state === 'out' ? 'block' : 'none';
+
+    inBtn.disabled = state !== 'in';
+    outBtn.disabled = state !== 'out';
+    currentAttendanceType = state === 'out' ? 'out' : 'in';
+
+    if (state === 'loading') {
+      inBtn.innerText = 'กำลังตรวจสอบ...';
+    } else {
+      inBtn.innerText = '✅ ยืนยันเข้างาน';
+      outBtn.innerText = '⏱️ ยืนยันออกงาน';
+    }
   }
 
   async function confirmAttendance(attendanceType) {
-    const btn = document.getElementById(attendanceType === 'out' ? 'btnConfirmOut' : 'btnConfirmIn');
-    const otherBtn = document.getElementById(attendanceType === 'out' ? 'btnConfirmIn' : 'btnConfirmOut');
+    const finalAttendanceType = attendanceType || currentAttendanceType;
+    const btn = document.getElementById(finalAttendanceType === 'out' ? 'btnConfirmOut' : 'btnConfirmIn');
+    const otherBtn = document.getElementById(finalAttendanceType === 'out' ? 'btnConfirmIn' : 'btnConfirmOut');
     const originalText = btn.innerText;
     btn.disabled   = true;
     otherBtn.disabled = true;
@@ -518,7 +580,7 @@
           name: currentMatch,
           lat: currentLat,
           lng: currentLng,
-          attendanceType: attendanceType
+          attendanceType: finalAttendanceType
         })
       });
       const data = await res.json();
