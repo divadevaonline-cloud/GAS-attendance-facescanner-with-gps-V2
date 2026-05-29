@@ -184,9 +184,9 @@ function logAttendance(name, lat, lng, attendanceType) {
     if (existing.timeOut) return { error: 'วันนี้บันทึกเวลาออกงานแล้ว' };
   }
 
-  if (!rowNumber) rowNumber = sheet.getLastRow() + 1;
-
-  if (rowNumber > sheet.getLastRow()) {
+  if (!rowNumber) {
+    sheet.insertRowBefore(2);
+    rowNumber = 2;
     sheet.getRange(rowNumber, 1, 1, 10).setValues([[
       name, "'" + dateStr, '', '', '', '', '', '', '', ''
     ]]);
