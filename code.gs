@@ -48,6 +48,8 @@ function doPost(e) {
     result = logAttendance(data.name, data.lat, data.lng, data.attendanceType);
   } else if (action === 'getAttendanceStatus') {
     result = getAttendanceStatus(data.name);
+  } else if (action === 'submitAttendanceNote') {
+    result = submitAttendanceNote(data.name, data.date, data.noteType, data.note);
   } else if (action === 'saveConfig') {
     result = verifyAdminPin(data.adminPin) || saveConfig(data.lat, data.lng, data.radius, data.workDays, data.specialHolidays);
   } else if (action === 'getAttendanceReport') {
@@ -187,8 +189,8 @@ function logAttendance(name, lat, lng, attendanceType) {
   if (!rowNumber) {
     sheet.insertRowBefore(2);
     rowNumber = 2;
-    sheet.getRange(rowNumber, 1, 1, 10).setValues([[
-      name, "'" + dateStr, '', '', '', '', '', '', '', ''
+    sheet.getRange(rowNumber, 1, 1, 11).setValues([[
+      name, "'" + dateStr, '', '', '', '', '', '', '', '', ''
     ]]);
   }
 
@@ -205,6 +207,36 @@ function logAttendance(name, lat, lng, attendanceType) {
   sheet.getRange(rowNumber, 6).setValue(longitude);
   sheet.getRange(rowNumber, 9).setValue(mapLink);
   return { success: true, message: 'บันทึกเวลาเข้างานสำเร็จ' };
+}
+
+function submitAttendanceNote(name, dateValue, noteType, note) {
+  name = normalizeEmployeeName(name);
+  const dateStr = formatSheetDateFromIso(dateValue);
+  const type = String(noteType || '').trim();
+  const detail = String(note || '').replace(/\s+/g, ' ').trim();
+
+  if (!name) return { error: 'กรุณาเลือกหรือกรอกชื่อพนักงาน' };
+  if (!dateStr) return { error: 'กรุณาเลือกวันที่ให้ถูกต้อง' };
+  if (!type) return { error: 'กรุณาเลือกประเภทการแจ้ง' };
+  if (!detail) return { error: 'กรุณากรอกรายละเอียด' };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ensureAttendanceSheet(ss);
+  let rowNumber = findAttendanceRow(sheet, name, dateStr);
+
+  if (!rowNumber) {
+    sheet.insertRowBefore(2);
+    rowNumber = 2;
+    sheet.getRange(rowNumber, 1, 1, 11).setValues([[
+      name, "'" + dateStr, '', '', '', '', '', '', '', '', ''
+    ]]);
+  }
+
+  const submittedAt = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd/M/yyyy HH:mm:ss');
+  const noteText = '[' + type + '] ' + detail + ' (แจ้งเมื่อ ' + submittedAt + ')';
+  sheet.getRange(rowNumber, 11).setValue(noteText);
+
+  return { success: true, message: 'บันทึกหมายเหตุเรียบร้อย' };
 }
 
 function getAttendanceStatus(name) {
@@ -245,7 +277,7 @@ function ensureAttendanceSheet(ss) {
   const headers = [
     'Name', 'Date', 'Time In', 'Time Out',
     'Latitude In', 'Longitude In', 'Latitude Out', 'Longitude Out',
-    'Map In', 'Map Out'
+    'Map In', 'Map Out', 'Note'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.setFrozenRows(1);
@@ -375,6 +407,7 @@ function getAttendanceReport(fromDate, toDate, employeeName) {
       const record = attendanceMap[normalizeEmployeeName(name) + '|' + dateKey] || {};
       const timeIn = record.timeIn || '';
       const timeOut = record.timeOut || '';
+      const note = record.note || '';
       const hours = calculateHours(timeIn, timeOut);
       let status;
       const summary = summaryMap[name];
@@ -389,6 +422,13 @@ function getAttendanceReport(fromDate, toDate, employeeName) {
         summary.incompleteDates.push(dateKey);
       } else if (!timeIn && timeOut) {
         status = 'มีเวลาออก ไม่มีเวลาเข้า';
+        summary.incompleteDays++;
+        summary.incompleteDates.push(dateKey);
+      } else if (note.indexOf('[ลาหยุด]') === 0) {
+        status = 'ลาหยุด';
+        summary.offDays++;
+      } else if (note.indexOf('[มาสาย]') === 0) {
+        status = 'มาสาย/รอเข้างาน';
         summary.incompleteDays++;
         summary.incompleteDates.push(dateKey);
       } else if (isSpecialHoliday) {
@@ -409,7 +449,8 @@ function getAttendanceReport(fromDate, toDate, employeeName) {
         timeIn: timeIn,
         timeOut: timeOut,
         hours: hours,
-        status: status
+        status: status,
+        note: note
       });
     });
   });
@@ -451,12 +492,20 @@ function buildAttendanceMap(ss) {
     const oldTime = row[headerIndex['Time']] || '';
     const timeIn = row[headerIndex['Time In']] || oldTime || '';
     const timeOut = row[headerIndex['Time Out']] || '';
+    const note = row[headerIndex['Note']] || '';
     map[normalizeEmployeeName(name) + '|' + dateKey] = {
       timeIn: String(timeIn || '').trim(),
-      timeOut: String(timeOut || '').trim()
+      timeOut: String(timeOut || '').trim(),
+      note: String(note || '').trim()
     };
   });
   return map;
+}
+
+function formatSheetDateFromIso(value) {
+  const date = parseIsoDate(value);
+  if (!date) return '';
+  return date.getDate() + '/' + (date.getMonth() + 1) + '/' + date.getFullYear();
 }
 
 function normalizeEmployeeName(value) {

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ลาหยุด / มาสาย</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="js/api-config.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px 60px;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+      animation: fadeIn 0.45s ease;
+    }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #94a3b8; text-decoration: none; font-size: 0.9em;
+      padding: 7px 12px; border-radius: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 18px;
+    }
+    h2 {
+      font-size: 1.6em;
+      font-weight: 700;
+      color: #f8fafc;
+      text-shadow: 0 2px 18px rgba(245,158,11,0.2);
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 0.88em;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 20px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    label {
+      display: block;
+      color: #94a3b8;
+      font-size: 0.82em;
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #e2e8f0;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 15px;
+      outline: none;
+      margin-bottom: 14px;
+    }
+    textarea {
+      min-height: 118px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+    select option {
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    input::placeholder, textarea::placeholder { color: #64748b; }
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 13px;
+      cursor: pointer;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      padding: 15px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+      box-shadow: 0 4px 20px rgba(245,158,11,0.3);
+      transition: all 0.25s ease;
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(245,158,11,0.42);
+    }
+    .btn:disabled {
+      background: rgba(255,255,255,0.08);
+      color: #64748b;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    #msg {
+      display: none;
+      margin-top: 14px;
+      padding: 13px;
+      border-radius: 13px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      text-align: center;
+      font-weight: 700;
+    }
+    .msg-success { color: #34d399; border-color: rgba(16,185,129,0.3); }
+    .msg-error { color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+    .note {
+      color: #94a3b8;
+      font-size: 0.78em;
+      line-height: 1.5;
+      margin-top: -8px;
+      margin-bottom: 14px;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-btn">← กลับ</a>
+    <h2>ลาหยุด / มาสาย</h2>
+    <p class="subtitle">บันทึกรายละเอียดลงคอลัมน์ Note ใน Attendance ตามวันที่ที่เลือก</p>
+
+    <div class="card">
+      <label>ชื่อพนักงาน</label>
+      <input id="employeeName" list="employeeList" placeholder="เช่น JT">
+      <datalist id="employeeList"></datalist>
+
+      <label>ประเภท</label>
+      <select id="noteType">
+        <option value="ลาหยุด">ลาหยุด</option>
+        <option value="มาสาย">มาสาย</option>
+        <option value="อื่น ๆ">อื่น ๆ</option>
+      </select>
+
+      <label>วันที่แจ้ง</label>
+      <input type="date" id="requestDate">
+
+      <label>รายละเอียด</label>
+      <textarea id="note" placeholder="เช่น ลากิจครึ่งวันช่วงเช้า / รถติด จะเข้างานประมาณ 10:30 น."></textarea>
+      <p class="note">ข้อมูลนี้ยังไม่มีระบบอนุมัติ ผู้ดูแลควรตรวจสอบ Note ใน Attendance อีกครั้ง</p>
+
+      <button class="btn" id="submitBtn" onclick="submitNote()">บันทึกหมายเหตุ</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    const API_URL = localStorage.getItem('gasApiUrl') || GAS_API_URL;
+    const msgEl = document.getElementById('msg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    window.addEventListener('load', init);
+
+    function init() {
+      document.getElementById('requestDate').value = toDateInput(new Date());
+      loadEmployeeNames();
+    }
+
+    async function loadEmployeeNames() {
+      try {
+        const users = await fetch(API_URL + '?action=getKnownFaces').then(r => r.json());
+        const list = document.getElementById('employeeList');
+        list.innerHTML = '';
+        (users || []).forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.label;
+          list.appendChild(option);
+        });
+      } catch (e) {}
+    }
+
+    async function submitNote() {
+      const name = document.getElementById('employeeName').value.trim();
+      const noteType = document.getElementById('noteType').value;
+      const date = document.getElementById('requestDate').value;
+      const note = document.getElementById('note').value.trim();
+
+      if (!name) return showMsg('กรุณากรอกชื่อพนักงาน', 'error');
+      if (!date) return showMsg('กรุณาเลือกวันที่', 'error');
+      if (!note) return showMsg('กรุณากรอกรายละเอียด', 'error');
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'กำลังบันทึก...';
+      showMsg('กำลังบันทึก...', '');
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'submitAttendanceNote',
+            name,
+            date,
+            noteType,
+            note
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showMsg(data.message || 'บันทึกเรียบร้อย', 'success');
+        document.getElementById('note').value = '';
+      } catch (e) {
+        showMsg(e.message || 'บันทึกไม่สำเร็จ', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'บันทึกหมายเหตุ';
+      }
+    }
+
+    function showMsg(text, type) {
+      msgEl.style.display = 'block';
+      msgEl.innerText = text;
+      msgEl.className = type === 'success' ? 'msg-success' : type === 'error' ? 'msg-error' : '';
+    }
+
+    function toDateInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return year + '-' + month + '-' + day;
+    }
+  </script>
+</body>
+</html>

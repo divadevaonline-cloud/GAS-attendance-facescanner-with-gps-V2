@@ -131,7 +131,7 @@
       word-break: break-word;
     }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    table { width: 100%; border-collapse: collapse; min-width: 860px; }
     th, td {
       padding: 11px 12px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -319,7 +319,7 @@
         '<div class="summary-grid">' + data.summary.map(renderSummaryCard).join('') + '</div>' +
         '<div class="table-wrap">' +
           '<table>' +
-            '<thead><tr><th>วันที่</th><th>พนักงาน</th><th>เข้า</th><th>ออก</th><th>ชั่วโมง</th><th>สถานะ</th></tr></thead>' +
+            '<thead><tr><th>วันที่</th><th>พนักงาน</th><th>เข้า</th><th>ออก</th><th>ชั่วโมง</th><th>สถานะ</th><th>Note</th></tr></thead>' +
             '<tbody>' + data.daily.map(renderDailyRow).join('') + '</tbody>' +
           '</table>' +
         '</div>';
@@ -355,6 +355,7 @@
         '<td>' + escapeHtml(row.timeOut || '-') + '</td>' +
         '<td>' + escapeHtml(String(row.hours || 0)) + '</td>' +
         '<td><span class="' + statusClass(row.status) + '">' + escapeHtml(row.status) + '</span></td>' +
+        '<td>' + escapeHtml(row.note || '-') + '</td>' +
       '</tr>';
     }
 
