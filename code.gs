@@ -49,7 +49,7 @@ function doPost(e) {
   } else if (action === 'getAttendanceStatus') {
     result = getAttendanceStatus(data.name);
   } else if (action === 'submitAttendanceNote') {
-    result = submitAttendanceNote(data.name, data.date, data.noteType, data.note);
+    result = submitAttendanceNote(data.name, data.date, data.endDate, data.noteType, data.note);
   } else if (action === 'saveConfig') {
     result = verifyAdminPin(data.adminPin) || saveConfig(data.lat, data.lng, data.radius, data.workDays, data.specialHolidays);
   } else if (action === 'getAttendanceReport') {
@@ -209,34 +209,50 @@ function logAttendance(name, lat, lng, attendanceType) {
   return { success: true, message: 'บันทึกเวลาเข้างานสำเร็จ' };
 }
 
-function submitAttendanceNote(name, dateValue, noteType, note) {
+function submitAttendanceNote(name, startDateValue, endDateValue, noteType, note) {
   name = normalizeEmployeeName(name);
-  const dateStr = formatSheetDateFromIso(dateValue);
+  const startDate = parseIsoDate(startDateValue);
+  const endDate = parseIsoDate(endDateValue || startDateValue);
   const type = String(noteType || '').trim();
   const detail = String(note || '').replace(/\s+/g, ' ').trim();
 
   if (!name) return { error: 'กรุณาเลือกหรือกรอกชื่อพนักงาน' };
-  if (!dateStr) return { error: 'กรุณาเลือกวันที่ให้ถูกต้อง' };
+  if (!startDate || !endDate) return { error: 'กรุณาเลือกวันที่ให้ถูกต้อง' };
+  if (startDate.getTime() > endDate.getTime()) return { error: 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น' };
   if (!type) return { error: 'กรุณาเลือกประเภทการแจ้ง' };
   if (!detail) return { error: 'กรุณากรอกรายละเอียด' };
 
+  const dates = enumerateDates(startDate, endDate);
+  if (dates.length > 5) return { error: 'แจ้งได้ไม่เกิน 5 วันต่อครั้ง' };
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ensureAttendanceSheet(ss);
-  let rowNumber = findAttendanceRow(sheet, name, dateStr);
-
-  if (!rowNumber) {
-    sheet.insertRowBefore(2);
-    rowNumber = 2;
-    sheet.getRange(rowNumber, 1, 1, 11).setValues([[
-      name, "'" + dateStr, '', '', '', '', '', '', '', '', ''
-    ]]);
-  }
-
   const submittedAt = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd/M/yyyy HH:mm:ss');
-  const noteText = '[' + type + '] ' + detail + ' (แจ้งเมื่อ ' + submittedAt + ')';
-  sheet.getRange(rowNumber, 11).setValue(noteText);
+  const rangeText = dates.length > 1
+    ? ' ช่วง ' + formatSheetDateFromDate(startDate) + ' - ' + formatSheetDateFromDate(endDate)
+    : '';
+  const noteText = '[' + type + ']' + rangeText + ' ' + detail + ' (แจ้งเมื่อ ' + submittedAt + ')';
 
-  return { success: true, message: 'บันทึกหมายเหตุเรียบร้อย' };
+  dates.forEach(function(dateObj) {
+    const dateStr = formatSheetDateFromDate(dateObj);
+    let rowNumber = findAttendanceRow(sheet, name, dateStr);
+
+    if (!rowNumber) {
+      sheet.insertRowBefore(2);
+      rowNumber = 2;
+      sheet.getRange(rowNumber, 1, 1, 11).setValues([[
+        name, "'" + dateStr, '', '', '', '', '', '', '', '', ''
+      ]]);
+    }
+
+    sheet.getRange(rowNumber, 11).setValue(noteText);
+  });
+
+  return {
+    success: true,
+    message: dates.length > 1 ? 'บันทึกหมายเหตุ ' + dates.length + ' วันเรียบร้อย' : 'บันทึกหมายเหตุเรียบร้อย',
+    days: dates.length
+  };
 }
 
 function getAttendanceStatus(name) {
@@ -502,9 +518,8 @@ function buildAttendanceMap(ss) {
   return map;
 }
 
-function formatSheetDateFromIso(value) {
-  const date = parseIsoDate(value);
-  if (!date) return '';
+function formatSheetDateFromDate(date) {
+  if (!date || isNaN(date.getTime())) return '';
   return date.getDate() + '/' + (date.getMonth() + 1) + '/' + date.getFullYear();
 }
 

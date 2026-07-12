@@ -131,7 +131,7 @@
   <div class="container">
     <a href="index.html" class="back-btn">← กลับ</a>
     <h2>ลาหยุด / มาสาย</h2>
-    <p class="subtitle">บันทึกรายละเอียดลงคอลัมน์ Note ใน Attendance ตามวันที่ที่เลือก</p>
+    <p class="subtitle">บันทึกรายละเอียดลงคอลัมน์ Note ใน Attendance ตามช่วงวันที่ที่เลือก สูงสุด 5 วันต่อครั้ง</p>
 
     <div class="card">
       <label>ชื่อพนักงาน</label>
@@ -145,8 +145,12 @@
         <option value="อื่น ๆ">อื่น ๆ</option>
       </select>
 
-      <label>วันที่แจ้ง</label>
-      <input type="date" id="requestDate">
+      <label>วันที่เริ่มต้น</label>
+      <input type="date" id="startDate">
+
+      <label>วันที่สิ้นสุด</label>
+      <input type="date" id="endDate">
+      <p class="note">ถ้าแจ้งวันเดียว ให้เลือกวันที่เริ่มต้นและสิ้นสุดเป็นวันเดียวกัน</p>
 
       <label>รายละเอียด</label>
       <textarea id="note" placeholder="เช่น ลากิจครึ่งวันช่วงเช้า / รถติด จะเข้างานประมาณ 10:30 น."></textarea>
@@ -165,7 +169,10 @@
     window.addEventListener('load', init);
 
     function init() {
-      document.getElementById('requestDate').value = toDateInput(new Date());
+      const today = toDateInput(new Date());
+      document.getElementById('startDate').value = today;
+      document.getElementById('endDate').value = today;
+      document.getElementById('startDate').addEventListener('change', syncEndDate);
       loadEmployeeNames();
     }
 
@@ -185,11 +192,15 @@
     async function submitNote() {
       const name = document.getElementById('employeeName').value.trim();
       const noteType = document.getElementById('noteType').value;
-      const date = document.getElementById('requestDate').value;
+      const date = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
       const note = document.getElementById('note').value.trim();
 
       if (!name) return showMsg('กรุณากรอกชื่อพนักงาน', 'error');
-      if (!date) return showMsg('กรุณาเลือกวันที่', 'error');
+      if (!date || !endDate) return showMsg('กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด', 'error');
+      const dayCount = countInclusiveDays(date, endDate);
+      if (dayCount < 1) return showMsg('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น', 'error');
+      if (dayCount > 5) return showMsg('แจ้งได้ไม่เกิน 5 วันต่อครั้ง', 'error');
       if (!note) return showMsg('กรุณากรอกรายละเอียด', 'error');
 
       submitBtn.disabled = true;
@@ -203,6 +214,7 @@
             action: 'submitAttendanceNote',
             name,
             date,
+            endDate,
             noteType,
             note
           })
@@ -223,6 +235,27 @@
       msgEl.style.display = 'block';
       msgEl.innerText = text;
       msgEl.className = type === 'success' ? 'msg-success' : type === 'error' ? 'msg-error' : '';
+    }
+
+    function syncEndDate() {
+      const start = document.getElementById('startDate').value;
+      const endInput = document.getElementById('endDate');
+      if (!endInput.value || countInclusiveDays(start, endInput.value) < 1) {
+        endInput.value = start;
+      }
+    }
+
+    function countInclusiveDays(startValue, endValue) {
+      const start = parseDateInput(startValue);
+      const end = parseDateInput(endValue);
+      if (!start || !end) return 0;
+      return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    }
+
+    function parseDateInput(value) {
+      const parts = String(value || '').split('-').map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+      return new Date(parts[0], parts[1] - 1, parts[2]);
     }
 
     function toDateInput(date) {
