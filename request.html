@@ -135,8 +135,9 @@
 
     <div class="card">
       <label>ชื่อพนักงาน</label>
-      <input id="employeeName" list="employeeList" placeholder="เช่น JT">
-      <datalist id="employeeList"></datalist>
+      <select id="employeeName">
+        <option value="">กำลังโหลดรายชื่อ...</option>
+      </select>
 
       <label>ประเภท</label>
       <select id="noteType">
@@ -177,16 +178,23 @@
     }
 
     async function loadEmployeeNames() {
+      const select = document.getElementById('employeeName');
       try {
         const users = await fetch(API_URL + '?action=getKnownFaces').then(r => r.json());
-        const list = document.getElementById('employeeList');
-        list.innerHTML = '';
+        select.innerHTML = '<option value="">เลือกพนักงาน</option>';
+        if (!users || users.length === 0) {
+          select.innerHTML = '<option value="">ไม่พบรายชื่อพนักงาน</option>';
+          return;
+        }
         (users || []).forEach(user => {
           const option = document.createElement('option');
           option.value = user.label;
-          list.appendChild(option);
+          option.innerText = user.label;
+          select.appendChild(option);
         });
-      } catch (e) {}
+      } catch (e) {
+        select.innerHTML = '<option value="">โหลดรายชื่อไม่สำเร็จ</option>';
+      }
     }
 
     async function submitNote() {
@@ -196,7 +204,7 @@
       const endDate = document.getElementById('endDate').value;
       const note = document.getElementById('note').value.trim();
 
-      if (!name) return showMsg('กรุณากรอกชื่อพนักงาน', 'error');
+      if (!name) return showMsg('กรุณาเลือกชื่อพนักงาน', 'error');
       if (!date || !endDate) return showMsg('กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด', 'error');
       const dayCount = countInclusiveDays(date, endDate);
       if (dayCount < 1) return showMsg('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น', 'error');
